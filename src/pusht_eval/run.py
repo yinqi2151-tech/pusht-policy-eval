@@ -77,6 +77,11 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--perturb", default="none", help="kind:level, e.g. action_noise:10 (default: none)")
     parser.add_argument("--no-deterministic", action="store_true", help="keep LeRobot's cuDNN benchmark mode")
     parser.add_argument("--no-trajectories", action="store_true", help="skip per-step trajectory logging")
+    parser.add_argument(
+        "--policy-seed-offset", type=int, default=0,
+        help="re-seed torch with seed+offset after LeRobot's set_seed: same initial states, "
+             "different diffusion sampling noise (null control for run-to-run variation)",
+    )
     args, lerobot_args = parser.parse_known_args(argv)
 
     spec = PerturbationSpec.parse(args.perturb)
@@ -89,6 +94,7 @@ def main(argv: list[str] | None = None) -> None:
     if output_dir.exists() and any(output_dir.iterdir()):
         parser.error(f"output_dir {output_dir} is not empty; LeRobot would refuse or mix runs")
     traj_dir = None if args.no_trajectories else output_dir / "trajectories"
+    condition = spec.name + (f"_policyseed{args.policy_seed_offset}" if args.policy_seed_offset else "")
     deterministic = not args.no_deterministic
 
     from lerobot.scripts import lerobot_eval
@@ -104,6 +110,11 @@ def main(argv: list[str] | None = None) -> None:
             # eval_main switches cudnn.benchmark on right before building envs.
             torch.backends.cudnn.benchmark = False
         envs = original_make_env(*env_args, **env_kwargs)
+        if args.policy_seed_offset:
+            # make_env runs after set_seed(cfg.seed) and before the policy is built and
+            # rolled out, so this changes only the policy's random draws; episode
+            # initial states come from the per-episode env seeds and stay the same.
+            torch.manual_seed(int(_arg_value(lerobot_args, "seed")) + args.policy_seed_offset)
         for tasks in envs.values():
             for vec in tasks.values():
                 wrap_vector_env(vec, spec, traj_dir)
@@ -122,7 +133,8 @@ def main(argv: list[str] | None = None) -> None:
     overall = json.loads((output_dir / "eval_info.json").read_text(encoding="utf-8")).get("overall", {})
     manifest = {
         "perturbation": spec.as_dict(),
-        "condition": spec.name,
+        "condition": condition,
+        "policy_seed_offset": args.policy_seed_offset,
         "policy_path": _arg_value(lerobot_args, "policy.path"),
         "start_seed": int(_arg_value(lerobot_args, "seed")),
         "n_episodes": n_episodes,
@@ -145,7 +157,7 @@ def main(argv: list[str] | None = None) -> None:
     }
     output_dir.mkdir(parents=True, exist_ok=True)
     (output_dir / "run_manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
-    print(f"[pusht_eval] {spec.name}: {n_episodes} episodes in {duration:.0f}s -> {output_dir}")
+    print(f"[pusht_eval] {condition}: {n_episodes} episodes in {duration:.0f}s -> {output_dir}")
 
 
 if __name__ == "__main__":

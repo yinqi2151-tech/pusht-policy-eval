@@ -16,6 +16,7 @@ TEXT = "#0b0b0b"
 TEXT_2 = "#52514e"
 GRID = "#e4e3df"
 SERIES = "#2a78d6"
+ERASE_COLOR = "#eb6834"  # categorical slot 2
 CATEGORY_COLORS = dict(zip(CATEGORIES, ["#2a78d6", "#eb6834", "#1baf7a", "#eda100", "#e87ba4"]))
 CATEGORY_NAMES = {
     "success": "Success",
@@ -43,23 +44,40 @@ def _style(ax) -> None:
     ax.set_axisbelow(True)
 
 
+def _series(ax, rows, xs, color, label=None, label_pos="right"):
+    ys = [100 * r["success_rate"] for r in rows]
+    # Clamp: float rounding can put a Wilson bound a hair past the estimate at 0% or 100%.
+    lo = [max(0.0, 100 * (r["success_rate"] - r["ci_low"])) for r in rows]
+    hi = [max(0.0, 100 * (r["ci_high"] - r["success_rate"])) for r in rows]
+    ax.errorbar(xs, ys, yerr=[lo, hi], color=color, linewidth=2, marker="o", markersize=7,
+                markeredgecolor=SURFACE, markeredgewidth=2, capsize=0, elinewidth=1.5)
+    text = f"{ys[-1]:.0f}%" if label is None else f"{label} {ys[-1]:.0f}%"
+    offset = (9, 0) if label_pos == "right" else (9, 11)
+    ax.annotate(text, (xs[-1], ys[-1]), textcoords="offset points", xytext=offset,
+                ha="left", va="center", fontsize=9, color=TEXT)
+
+
 def robustness_curves(table: list[dict], out: Path, title: str) -> Path:
     clean = next(s for s in table if s["condition"] == "clean")
+    # Unperturbed repeats with different policy sampling seeds (null control), if run.
+    repeats = [s for s in table if s["kind"] == "none"]
     fig, axes = plt.subplots(1, 4, figsize=(13, 3.6), sharey=True, facecolor=SURFACE)
     for ax, (kind, name, xlabel) in zip(axes, PANELS):
         _style(ax)
+        if len(repeats) > 1:
+            lo_r = 100 * min(r["success_rate"] for r in repeats)
+            hi_r = 100 * max(r["success_rate"] for r in repeats)
+            ax.axhspan(lo_r, hi_r, color=GRID, alpha=0.6, linewidth=0)
+        ax.axhline(100 * clean["success_rate"], color=TEXT_2, linewidth=1, linestyle=(0, (3, 3)))
         rows = [clean] + sorted((s for s in table if s["kind"] == kind), key=lambda s: s["level"])
         xs = [0 if r is clean else r["level"] for r in rows]
-        ys = [100 * r["success_rate"] for r in rows]
-        # Clamp: float rounding can put a Wilson bound a hair past the estimate at 0% or 100%.
-        lo = [max(0.0, 100 * (r["success_rate"] - r["ci_low"])) for r in rows]
-        hi = [max(0.0, 100 * (r["ci_high"] - r["success_rate"])) for r in rows]
-        ax.axhline(100 * clean["success_rate"], color=TEXT_2, linewidth=1, linestyle=(0, (3, 3)))
-        ax.errorbar(xs, ys, yerr=[lo, hi], color=SERIES, linewidth=2, marker="o", markersize=7,
-                    markeredgecolor=SURFACE, markeredgewidth=2, capsize=0, elinewidth=1.5)
-        if len(rows) > 1:
-            ax.annotate(f"{ys[-1]:.0f}%", (xs[-1], ys[-1]), textcoords="offset points", xytext=(9, 0),
-                        ha="left", va="center", fontsize=9, color=TEXT)
+        if kind == "occlusion" and any(s["kind"] == "erase" for s in table):
+            erase = [clean] + sorted((s for s in table if s["kind"] == "erase"), key=lambda s: s["level"])
+            _series(ax, erase, [0 if r is clean else r["level"] for r in erase], ERASE_COLOR, "white", "above")
+            _series(ax, rows, xs, SERIES, "gray")
+            xs = sorted({*xs, *(0 if r is clean else r["level"] for r in erase)})
+        else:
+            _series(ax, rows, xs, SERIES)
         ax.margins(x=0.14)
         ax.set_title(name, fontsize=11, color=TEXT, loc="left")
         ax.set_xlabel(xlabel, fontsize=9, color=TEXT_2)
@@ -67,8 +85,12 @@ def robustness_curves(table: list[dict], out: Path, title: str) -> Path:
         ax.set_ylim(0, 100)
     axes[0].set_ylabel("Success rate (%)", fontsize=9, color=TEXT_2)
     fig.suptitle(title, x=0.01, ha="left", fontsize=12, color=TEXT)
-    fig.text(0.01, -0.02, "Points: success rate with 95% Wilson interval. Dashed line: unperturbed.",
-             fontsize=8, color=TEXT_2)
+    note = "Points: success rate with 95% Wilson interval. Dashed line: unperturbed."
+    if len(repeats) > 1:
+        note += f" Gray band: range over {len(repeats)} unperturbed runs with different policy sampling seeds."
+    if any(s["kind"] == "erase" for s in table):
+        note += " Occlusion: gray square (blue) vs. same square filled with the white background (orange)."
+    fig.text(0.01, -0.02, note, fontsize=8, color=TEXT_2)
     fig.tight_layout()
     out.parent.mkdir(parents=True, exist_ok=True)
     fig.savefig(out, dpi=160, bbox_inches="tight", facecolor=SURFACE)

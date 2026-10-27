@@ -46,6 +46,9 @@ def markdown(table: list[dict], manifest: dict) -> str:
         f"批大小 {manifest['batch_size']}，确定性设置：{'是' if manifest['deterministic_torch'] else '否'}",
         "- 所有条件使用同一组初始状态，与 `clean` 逐回合配对。成功率差异用精确 McNemar 检验，"
         "并对全部扰动条件做 Holm 校正；最高奖励差为配对均值及 bootstrap 95% 区间。",
+        "- `clean_policyseedN` 是对照组：不加扰动，只改变策略采样的随机种子。它们和 `clean` 之间的差异，"
+        "代表同一组初始状态仅因策略随机性产生的波动，不计入 Holm 校正。`erase_N` 是 `occlusion_N` 的对照："
+        "方块位置相同，但填充为白色背景。",
         "- 每回合的轨迹先与 LeRobot `eval_info.json` 的最高奖励和成功标志逐一核对，全部一致后才进入统计。",
         "",
         "| 条件 | 成功率 [95% Wilson] | Δ成功率 | 失去/新增成功 | McNemar p (Holm) | Δ平均最高奖励 [95% CI] |",
@@ -58,7 +61,7 @@ def markdown(table: list[dict], manifest: dict) -> str:
             continue
         lines.append(
             f"| {s['condition']} | {rate} | {100 * s['delta_success']:+.0f} pp | {s['lost']}/{s['gained']} | "
-            f"{fmt_p(s['mcnemar_p'])} ({fmt_p(s['mcnemar_p_holm'])}) | "
+            f"{fmt_p(s['mcnemar_p'])} ({fmt_p(s['mcnemar_p_holm']) if 'mcnemar_p_holm' in s else '对照，不校正'}) | "
             f"{s['delta_max_reward']:+.3f} [{s['delta_max_reward_ci_low']:+.3f}, {s['delta_max_reward_ci_high']:+.3f}] |"
         )
     lines += ["", "## 自动结局分类（回合数）", "", "| 条件 | " + " | ".join(CATEGORY_LABELS_ZH[c] for c in CATEGORIES) + " |",

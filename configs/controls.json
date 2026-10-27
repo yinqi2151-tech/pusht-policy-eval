@@ -1,0 +1,9 @@
+{
+  "description": "Follow-up controls for sweep_b, run after seeing its results: (1) erase = the occlusion squares at the same positions but filled with the white background, to separate information loss from the gray-distractor effect; (2) none@N = no perturbation, policy sampling seed offset N, to measure run-to-run variation on the same initial states.",
+  "policy_dir": "${OUT_ROOT}/migrated/diffusion_pusht",
+  "policy_label": "lerobot/diffusion_pusht@84a7c231 (migrated to LeRobot 0.6.1 processors)",
+  "start_seed": 2000,
+  "n_episodes": 100,
+  "batch_size": 25,
+  "conditions": ["none", "erase:16", "erase:48", "none@1", "none@2"]
+}

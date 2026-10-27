@@ -143,12 +143,13 @@ def compare_to_baseline(runs: dict[str, list[dict]], baseline: str = "clean") ->
                 delta_max_reward_ci_low=lo,
                 delta_max_reward_ci_high=hi,
             )
-            pvals[cond] = test["p_value"]
+            if rows[0]["kind"] != "none":  # Holm family: perturbed conditions only
+                pvals[cond] = test["p_value"]
         table.append(summary)
     adjusted = holm(pvals)
     for s in table:
         if s["condition"] in adjusted:
             s["mcnemar_p_holm"] = adjusted[s["condition"]]
-    kind_order = {"none": 0, "action_noise": 1, "action_delay": 2, "image_noise": 3, "occlusion": 4}
-    table.sort(key=lambda s: (kind_order.get(s["kind"], 9), s["level"]))
+    kind_order = {"none": 0, "action_noise": 1, "action_delay": 2, "image_noise": 3, "occlusion": 4, "erase": 5}
+    table.sort(key=lambda s: (kind_order.get(s["kind"], 9), s["level"], s["condition"] != baseline, s["condition"]))
     return table

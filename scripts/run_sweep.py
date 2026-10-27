@@ -8,6 +8,10 @@ the same seed/episode/batch settings is skipped, so an interrupted sweep can
 simply be restarted.
 
     python scripts/run_sweep.py configs/sweep_b.json [--only clean,action_noise_10] [--dry-run]
+
+A condition is ``kind:level`` (e.g. ``action_delay:4``) or ``none``; append
+``@N`` to also offset the policy's sampling seed by N (``none@1`` = same
+initial states, different diffusion noise: the run-to-run null control).
 """
 
 from __future__ import annotations
@@ -33,6 +37,14 @@ def expand(value: str) -> str:
     return os.path.expanduser(value.replace("${OUT_ROOT}", out_root))
 
 
+def parse_condition(text: str) -> tuple[PerturbationSpec, int, str]:
+    spec_text, _, offset_text = text.partition("@")
+    spec = PerturbationSpec.parse(spec_text)
+    offset = int(offset_text) if offset_text else 0
+    name = spec.name + (f"_policyseed{offset}" if offset else "")
+    return spec, offset, name
+
+
 def already_done(dest: Path, cfg: dict) -> bool:
     manifest = dest / "run_manifest.json"
     if not (manifest.exists() and (dest / "eval_info.json").exists()):
@@ -56,44 +68,45 @@ def main() -> None:
     out_root = Path(expand("${OUT_ROOT}"))
     if not args.dry_run and not (policy_dir / "config.json").exists():
         sys.exit(f"policy not found at {policy_dir}; run scripts/prepare_official_diffusion.sh first")
-    specs = [PerturbationSpec.parse(c) for c in cfg["conditions"]]
+    specs = [parse_condition(c) for c in cfg["conditions"]]
     only = {s for s in args.only.split(",") if s}
     if only:
-        unknown = only - {s.name for s in specs}
+        unknown = only - {name for _, _, name in specs}
         if unknown:
-            sys.exit(f"unknown condition(s) {sorted(unknown)}; known: {[s.name for s in specs]}")
-        specs = [s for s in specs if s.name in only]
+            sys.exit(f"unknown condition(s) {sorted(unknown)}; known: {[name for _, _, name in specs]}")
+        specs = [s for s in specs if s[2] in only]
 
     log_dir = REPO / "results" / "logs" / "sweep"
     log_dir.mkdir(parents=True, exist_ok=True)
     env = {**os.environ, "TQDM_DISABLE": "1", "PYTHONPATH": str(REPO / "src") + os.pathsep + os.environ.get("PYTHONPATH", "")}
     timings = []
-    for i, spec in enumerate(specs, 1):
-        dest = args.results / spec.name
+    for i, (spec, offset, name) in enumerate(specs, 1):
+        dest = args.results / name
         if already_done(dest, cfg):
-            print(f"[{i}/{len(specs)}] {spec.name}: already done, skipping")
+            print(f"[{i}/{len(specs)}] {name}: already done, skipping")
             continue
         stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-        out_dir = out_root / "runs" / f"{spec.name}-{stamp}"
+        out_dir = out_root / "runs" / f"{name}-{stamp}"
         cmd = [
             sys.executable, "-m", "pusht_eval.run", f"--perturb={spec.kind}:{spec.level}" if not spec.is_clean else "--perturb=none",
+            f"--policy-seed-offset={offset}",
             f"--policy.path={policy_dir}", f"--policy.device={args.device}", "--env.type=pusht",
             f"--eval.n_episodes={cfg['n_episodes']}", f"--eval.batch_size={cfg['batch_size']}",
             "--eval.use_async_envs=false", f"--seed={cfg['start_seed']}", f"--output_dir={out_dir}",
             *args.extra,
         ]
-        print(f"[{i}/{len(specs)}] {spec.name}: " + " ".join(cmd[2:]))
+        print(f"[{i}/{len(specs)}] {name}: " + " ".join(cmd[2:]))
         if args.dry_run:
             continue
         start = time.perf_counter()
-        with open(log_dir / f"{spec.name}.log", "w", encoding="utf-8") as log:
+        with open(log_dir / f"{name}.log", "w", encoding="utf-8") as log:
             proc = subprocess.run(cmd, cwd=REPO, env=env, stdout=log, stderr=subprocess.STDOUT)
         if proc.returncode != 0:
-            sys.exit(f"{spec.name} failed (exit {proc.returncode}); see {log_dir / (spec.name + '.log')}")
+            sys.exit(f"{name} failed (exit {proc.returncode}); see {log_dir / (name + '.log')}")
         collect_run(out_dir, dest)
         elapsed = time.perf_counter() - start
         timings.append(elapsed)
-        remaining = sum(1 for s in specs[i:] if not already_done(args.results / s.name, cfg))
+        remaining = sum(1 for _, _, n in specs[i:] if not already_done(args.results / n, cfg))
         eta = remaining * sum(timings) / len(timings)
         print(f"    done in {elapsed / 60:.1f} min; about {eta / 60:.0f} min left for {remaining} condition(s)")
 

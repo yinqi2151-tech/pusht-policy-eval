@@ -16,6 +16,11 @@ Units
   for every pixel and step, added to the policy's 96x96 observation only.
 - ``occlusion``: side length, in observation pixels, of a mid-gray square drawn
   on the policy's 96x96 observation. Its position is drawn once per episode.
+  Mid-gray (128) is close to the T block's slate gray (143, 163, 184), so the
+  square also acts as a T-coloured distractor.
+- ``erase``: control for ``occlusion``: the same square at the same position,
+  filled with the white background (255), so it hides whatever is under it
+  without adding a gray object.
 """
 
 from __future__ import annotations
@@ -26,8 +31,10 @@ from typing import Any
 import gymnasium as gym
 import numpy as np
 
-KINDS = {"none": 0, "action_noise": 1, "action_delay": 2, "image_noise": 3, "occlusion": 4}
+KINDS = {"none": 0, "action_noise": 1, "action_delay": 2, "image_noise": 3, "occlusion": 4, "erase": 5}
 OCCLUSION_FILL = 128
+ERASE_FILL = 255  # PushT background
+SQUARE_KINDS = ("occlusion", "erase")
 
 
 @dataclass(frozen=True)
@@ -77,7 +84,7 @@ def episode_rng(episode_seed: int, kind: str) -> np.random.Generator:
 def occlusion_box(episode_seed: int, side: int, image_size: int = 96) -> tuple[int, int, int, int]:
     """Return (row, col, height, width) of the occluder for this episode."""
     side = int(min(max(side, 0), image_size))
-    rng = episode_rng(episode_seed, "occlusion")
+    rng = episode_rng(episode_seed, "occlusion")  # shared by "erase": identical positions
     row = int(rng.integers(0, image_size - side + 1))
     col = int(rng.integers(0, image_size - side + 1))
     return row, col, side, side
@@ -103,7 +110,7 @@ class PerturbationWrapper(gym.Wrapper):
 
     # -- observation side -------------------------------------------------
     def _perturb_obs(self, obs: dict) -> dict:
-        if not self._active or self.perturbation.is_clean or self.perturbation.kind not in ("image_noise", "occlusion"):
+        if not self._active or self.perturbation.is_clean or self.perturbation.kind not in ("image_noise", *SQUARE_KINDS):
             return obs
         pixels = np.asarray(obs["pixels"])
         if self.perturbation.kind == "image_noise":
@@ -112,7 +119,8 @@ class PerturbationWrapper(gym.Wrapper):
         else:
             row, col, h, w = self._box
             pixels = pixels.copy()
-            pixels[row : row + h, col : col + w, :] = OCCLUSION_FILL
+            fill = OCCLUSION_FILL if self.perturbation.kind == "occlusion" else ERASE_FILL
+            pixels[row : row + h, col : col + w, :] = fill
         return {**obs, "pixels": pixels}
 
     # -- action side ------------------------------------------------------
@@ -136,7 +144,7 @@ class PerturbationWrapper(gym.Wrapper):
             if self.perturbation.kind == "action_delay":
                 hold = np.asarray(obs["agent_pos"], dtype=np.float64)
                 self._queue = [hold.copy() for _ in range(int(self.perturbation.level))]
-            if self.perturbation.kind == "occlusion":
+            if self.perturbation.kind in SQUARE_KINDS:
                 self._box = occlusion_box(seed, int(self.perturbation.level), np.asarray(obs["pixels"]).shape[0])
         return self._perturb_obs(obs), info
 

@@ -108,3 +108,16 @@ def test_autoreset_is_not_perturbed():
     a = np.array([200.0, 200.0], dtype=np.float32)
     env.step(a)
     np.testing.assert_array_equal(spy.executed[-1], a)
+
+
+def test_erase_uses_same_square_filled_with_background():
+    clean, _, _ = rollout(PerturbationSpec())
+    erased, _, _ = rollout(PerturbationSpec("erase", 24))
+    occl, _, _ = rollout(PerturbationSpec("occlusion", 24))
+    row, col, h, w = occlusion_box(7, 24)
+    for c, e, o in zip(clean, erased, occl):
+        assert (e["pixels"][row : row + h, col : col + w] == 255).all()
+        assert (o["pixels"][row : row + h, col : col + w] == OCCLUSION_FILL).all()
+        mask = np.ones(c["pixels"].shape[:2], bool)
+        mask[row : row + h, col : col + w] = False
+        assert np.array_equal(c["pixels"][mask], e["pixels"][mask])
