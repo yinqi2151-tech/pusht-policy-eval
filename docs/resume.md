@@ -4,7 +4,7 @@
 
 ## 完整版（评测 / 数据岗）
 
-**具身策略鲁棒性评测｜LeRobot、Diffusion Policy、PushT、Python**　[GitHub 链接]
+**具身策略鲁棒性评测｜LeRobot、Diffusion Policy、PushT、Python**　[github.com/yinqi2151-tech/pusht-policy-eval](https://github.com/yinqi2151-tech/pusht-policy-eval)
 
 - **评测流程校验**：早期评测第三方权重时，成功率只有 0–5%。核对训练配置后发现，所用的 Diffusion 权重只训练了 1000 步（官方为 20 万步）。之后修复了 LeRobot 0.6.1 迁移旧格式权重时的配置序列化 bug，改用官方权重复测，50 回合的平均最高奖励为 0.952（官方 0.955），证明评测流程本身可信。（`docs/validation.md`）
 - **可复现与提速**：定位到原生评测在同一种子下结果不可复现的原因（0.614 和 0.392，来自 cuDNN benchmark），改用确定性设置后修复。在保证逐步轨迹逐位一致的前提下，用批量并行把评测提速 11.5 倍（每回合 50 s → 4.4 s）。（`results/checks/determinism_batch25.json`）

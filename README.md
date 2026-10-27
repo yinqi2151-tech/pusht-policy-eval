@@ -1,5 +1,7 @@
 # PushT 策略鲁棒性评测
 
+[![tests](https://github.com/yinqi2151-tech/pusht-policy-eval/actions/workflows/tests.yml/badge.svg)](https://github.com/yinqi2151-tech/pusht-policy-eval/actions/workflows/tests.yml)
+
 本项目对 LeRobot 官方 Diffusion Policy 在 PushT 仿真推物任务上做**可复现、配对设计**的鲁棒性评测，分四步：
 
 1. **校验评测流程**：用官方基准确认流程本身可信。
