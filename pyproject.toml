@@ -7,6 +7,7 @@ name = "pusht-policy-eval"
 version = "0.1.0"
 description = "Reproducible robustness evaluation of LeRobot policies on PushT"
 requires-python = ">=3.10"
+license = { text = "MIT" }
 dependencies = ["lerobot[pusht,diffusion]==0.6.1", "matplotlib>=3.7"]
 
 [project.optional-dependencies]

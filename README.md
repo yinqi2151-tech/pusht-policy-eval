@@ -102,7 +102,9 @@ results/archive/            早期第三方权重的实验结果（原样保存�
 docs/                       协议、校验、结局分类、项目过程记录、简历表述
 ```
 
-## 第三方资源
+## 许可证与第三方资源
+
+- 本仓库代码以 [MIT 许可证](LICENSE) 发布。
 
 - 策略权重：[`lerobot/diffusion_pusht`](https://huggingface.co/lerobot/diffusion_pusht)（Apache-2.0）。
 - 依赖：[LeRobot](https://github.com/huggingface/lerobot)、[gym-pusht](https://github.com/huggingface/gym-pusht)。
