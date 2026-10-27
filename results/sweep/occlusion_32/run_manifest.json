@@ -1,0 +1,34 @@
+{
+  "perturbation": {
+    "kind": "occlusion",
+    "level": 32.0
+  },
+  "condition": "occlusion_32",
+  "policy_path": "/home/qyq71/pusht_eval_outputs/migrated/diffusion_pusht",
+  "start_seed": 2000,
+  "n_episodes": 100,
+  "batch_size": 25,
+  "deterministic_torch": true,
+  "trajectories": "trajectories",
+  "duration_s": 415.6,
+  "seconds_per_episode": 4.16,
+  "rollout_seconds_per_episode": 4.125,
+  "lerobot_args": [
+    "--policy.path=/home/qyq71/pusht_eval_outputs/migrated/diffusion_pusht",
+    "--policy.device=cuda",
+    "--env.type=pusht",
+    "--eval.n_episodes=100",
+    "--eval.batch_size=25",
+    "--eval.use_async_envs=false",
+    "--seed=2000",
+    "--output_dir=/home/qyq71/pusht_eval_outputs/runs/occlusion_32-20261027-190145"
+  ],
+  "versions": {
+    "lerobot": "0.6.1",
+    "gym_pusht": "0.1.8",
+    "torch": "2.11.0+cu130",
+    "python": "3.12.15"
+  },
+  "device": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "pusht_eval_commit": "0e9e8ef70d166f360b47ac617ef399e339fc6f15"
+}

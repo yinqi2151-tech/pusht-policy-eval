@@ -1,0 +1,31 @@
+{
+  "passed": true,
+  "run_dir": "/home/qyq71/pusht_eval_outputs/checks/determinism-20261027-164135",
+  "seeds": [
+    2000,
+    2024
+  ],
+  "batch_size": 25,
+  "repeat_identical_successes": true,
+  "repeat_identical_trajectories": true,
+  "repeat_max_abs_reward_diff": 2.842170943040401e-14,
+  "reward_tolerance": 1e-09,
+  "differing_seeds": [],
+  "rollout_seconds_per_episode": {
+    "batch_25": 4.352,
+    "batch_1": 50.162
+  },
+  "speedup_vs_batch1": 11.53,
+  "success_rate": {
+    "batch_25": 0.6,
+    "batch_1": 0.4
+  },
+  "device": "NVIDIA GeForce RTX 4060 Laptop GPU",
+  "versions": {
+    "lerobot": "0.6.1",
+    "gym_pusht": "0.1.8",
+    "torch": "2.11.0+cu130",
+    "python": "3.12.15"
+  },
+  "note": "batch-1 and batch-N results are not expected to be identical; only repeats at the same batch size are."
+}

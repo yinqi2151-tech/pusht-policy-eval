@@ -1,0 +1,44 @@
+{
+  "n_labeled": 40,
+  "n_sampled": 40,
+  "accuracy": 0.575,
+  "cohen_kappa": 0.4687499999999999,
+  "confusion_auto_rows_human_cols": {
+    "success": {
+      "success": 1,
+      "no_push": 0,
+      "near_miss": 4,
+      "lost_progress": 1,
+      "insufficient": 2
+    },
+    "no_push": {
+      "success": 0,
+      "no_push": 8,
+      "near_miss": 0,
+      "lost_progress": 0,
+      "insufficient": 0
+    },
+    "near_miss": {
+      "success": 0,
+      "no_push": 0,
+      "near_miss": 4,
+      "lost_progress": 4,
+      "insufficient": 0
+    },
+    "lost_progress": {
+      "success": 0,
+      "no_push": 0,
+      "near_miss": 0,
+      "lost_progress": 4,
+      "insufficient": 4
+    },
+    "insufficient": {
+      "success": 0,
+      "no_push": 0,
+      "near_miss": 1,
+      "lost_progress": 1,
+      "insufficient": 6
+    }
+  },
+  "note": "INVALID as a measure of the rules: videos were rendered with the T misplaced (see README.md in this folder)."
+}

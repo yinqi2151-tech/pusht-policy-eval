@@ -1,0 +1,56 @@
+{
+  "n_labeled": 40,
+  "n_sampled": 40,
+  "accuracy": 0.525,
+  "cohen_kappa": 0.40625,
+  "confusion_auto_rows_human_cols": {
+    "success": {
+      "success": 6,
+      "no_push": 0,
+      "near_miss": 1,
+      "lost_progress": 1,
+      "insufficient": 0
+    },
+    "no_push": {
+      "success": 0,
+      "no_push": 8,
+      "near_miss": 0,
+      "lost_progress": 0,
+      "insufficient": 0
+    },
+    "near_miss": {
+      "success": 2,
+      "no_push": 0,
+      "near_miss": 2,
+      "lost_progress": 4,
+      "insufficient": 0
+    },
+    "lost_progress": {
+      "success": 0,
+      "no_push": 0,
+      "near_miss": 0,
+      "lost_progress": 1,
+      "insufficient": 7
+    },
+    "insufficient": {
+      "success": 0,
+      "no_push": 0,
+      "near_miss": 3,
+      "lost_progress": 1,
+      "insufficient": 4
+    }
+  },
+  "posthoc_3class": {
+    "merge": "near_miss, lost_progress, insufficient -> partial",
+    "accuracy": 0.9,
+    "cohen_kappa": 0.8214285714285714,
+    "note": "post hoc: the merge was chosen after seeing this sample's disagreements"
+  },
+  "per_auto_category_agreement": {
+    "success": "6/8",
+    "no_push": "8/8",
+    "near_miss": "2/8",
+    "lost_progress": "1/8",
+    "insufficient": "4/8"
+  }
+}
