@@ -1,12 +1,16 @@
 """Check that batched evaluation is reproducible and measure the speed-up.
 
 Runs the unperturbed policy on the same seeds three times:
-  A, B: batch size N (default 10), deterministic settings -> must match bit for bit
+  A, B: batch size N (default 10), deterministic settings -> must match:
+        step-by-step trajectories bit for bit, success flags exactly, and
+        LeRobot's float64 rewards to REWARD_TOL (they can differ in the last
+        bit, ~1e-16, even when every logged state is identical)
   C:    batch size 1 on the first few seeds -> speed reference (results differ from A,
         because batched GPU kernels and diffusion noise draws differ)
 and writes results/checks/determinism_batch<N>.json.
 
     python scripts/check_determinism.py --policy-dir ~/pusht_eval_outputs/migrated/diffusion_pusht
+    python scripts/check_determinism.py --reuse ~/pusht_eval_outputs/checks/determinism-<stamp> ...
 """
 
 from __future__ import annotations
@@ -26,6 +30,14 @@ sys.path.insert(0, str(REPO / "src"))
 
 from pusht_eval.analysis import load_trajectories  # noqa: E402
 
+REWARD_TOL = 1e-9
+
+
+def load(out_dir: Path) -> dict:
+    manifest = json.loads((out_dir / "run_manifest.json").read_text(encoding="utf-8"))
+    metrics = json.loads((out_dir / "eval_info.json").read_text(encoding="utf-8"))["per_task"][0]["metrics"]
+    return {"dir": out_dir, "manifest": manifest, "metrics": metrics}
+
 
 def run(policy_dir: Path, out_dir: Path, n: int, batch: int, seed: int, device: str, extra: list[str]) -> dict:
     env = {**os.environ, "TQDM_DISABLE": "1", "PYTHONPATH": str(REPO / "src") + os.pathsep + os.environ.get("PYTHONPATH", "")}
@@ -39,9 +51,7 @@ def run(policy_dir: Path, out_dir: Path, n: int, batch: int, seed: int, device: 
     with open(log, "w", encoding="utf-8") as f:
         if subprocess.run(cmd, cwd=REPO, env=env, stdout=f, stderr=subprocess.STDOUT).returncode:
             sys.exit(f"run failed, see {log}")
-    manifest = json.loads((out_dir / "run_manifest.json").read_text(encoding="utf-8"))
-    metrics = json.loads((out_dir / "eval_info.json").read_text(encoding="utf-8"))["per_task"][0]["metrics"]
-    return {"dir": out_dir, "manifest": manifest, "metrics": metrics}
+    return load(out_dir)
 
 
 def trajectories_identical(a: Path, b: Path) -> tuple[bool, list[int]]:
@@ -56,7 +66,7 @@ def trajectories_identical(a: Path, b: Path) -> tuple[bool, list[int]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    parser.add_argument("--policy-dir", type=Path, required=True)
+    parser.add_argument("--policy-dir", type=Path)
     parser.add_argument("--n-episodes", type=int, default=10)
     parser.add_argument("--batch-size", type=int, default=10)
     parser.add_argument("--seed", type=int, default=2000)
@@ -64,28 +74,47 @@ def main() -> None:
     parser.add_argument("--out-root", type=Path, default=Path(os.environ.get("OUT_ROOT", Path.home() / "pusht_eval_outputs")))
     parser.add_argument("--skip-batch1", action="store_true", help="skip the slow batch-size-1 speed reference")
     parser.add_argument("--batch1-episodes", type=int, default=5, help="episodes for the batch-1 speed reference")
+    parser.add_argument("--reuse", type=Path, help="re-evaluate an existing checks/determinism-<stamp> directory")
     parser.add_argument("--extra", nargs=argparse.REMAINDER, default=[])
     args = parser.parse_args()
 
-    stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
-    base = args.out_root / "checks" / f"determinism-{stamp}"
-    common = dict(policy_dir=args.policy_dir, n=args.n_episodes, seed=args.seed, device=args.device, extra=args.extra)
-    print(f"run A (batch {args.batch_size}) ...", flush=True)
-    a = run(out_dir=base / "batchN_a", batch=args.batch_size, **common)
-    print(f"run B (batch {args.batch_size}) ...", flush=True)
-    b = run(out_dir=base / "batchN_b", batch=args.batch_size, **common)
-    c = None
-    if not args.skip_batch1:
-        print("run C (batch 1) ...", flush=True)
-        c = run(out_dir=base / "batch1", batch=1, **{**common, "n": min(args.batch1_episodes, args.n_episodes)})
+    if args.reuse:
+        base = args.reuse.expanduser()
+        a, b = load(base / "batchN_a"), load(base / "batchN_b")
+        c = load(base / "batch1") if (base / "batch1" / "eval_info.json").exists() else None
+        args.batch_size, args.n_episodes = a["manifest"]["batch_size"], a["manifest"]["n_episodes"]
+        args.seed = a["manifest"]["start_seed"]
+    else:
+        if args.policy_dir is None:
+            parser.error("--policy-dir is required unless --reuse is given")
+        stamp = datetime.now().strftime("%Y%m%d-%H%M%S")
+        base = args.out_root / "checks" / f"determinism-{stamp}"
+        common = dict(policy_dir=args.policy_dir, n=args.n_episodes, seed=args.seed, device=args.device, extra=args.extra)
+        print(f"run A (batch {args.batch_size}) ...", flush=True)
+        a = run(out_dir=base / "batchN_a", batch=args.batch_size, **common)
+        print(f"run B (batch {args.batch_size}) ...", flush=True)
+        b = run(out_dir=base / "batchN_b", batch=args.batch_size, **common)
+        c = None
+        if not args.skip_batch1:
+            print("run C (batch 1) ...", flush=True)
+            c = run(out_dir=base / "batch1", batch=1, **{**common, "n": min(args.batch1_episodes, args.n_episodes)})
 
-    same_metrics = a["metrics"]["max_rewards"] == b["metrics"]["max_rewards"] and a["metrics"]["successes"] == b["metrics"]["successes"]
+    ma, mb = a["metrics"], b["metrics"]
+    same_success = ma["successes"] == mb["successes"]
+    reward_diff = max(
+        abs(x - y) for key in ("max_rewards", "sum_rewards") for x, y in zip(ma[key], mb[key])
+    )
     same_traj, differing = trajectories_identical(a["dir"], b["dir"])
+    passed = same_success and same_traj and reward_diff <= REWARD_TOL
     report = {
+        "passed": passed,
+        "run_dir": str(base),
         "seeds": [args.seed, args.seed + args.n_episodes - 1],
         "batch_size": args.batch_size,
-        "repeat_identical_metrics": same_metrics,
+        "repeat_identical_successes": same_success,
         "repeat_identical_trajectories": same_traj,
+        "repeat_max_abs_reward_diff": reward_diff,
+        "reward_tolerance": REWARD_TOL,
         "differing_seeds": differing,
         "rollout_seconds_per_episode": {
             f"batch_{args.batch_size}": a["manifest"]["rollout_seconds_per_episode"],
@@ -106,7 +135,7 @@ def main() -> None:
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text(json.dumps(report, indent=2), encoding="utf-8")
     print(json.dumps(report, indent=2))
-    if not (same_metrics and same_traj):
+    if not passed:
         sys.exit("NOT reproducible at this batch size: do not run the sweep until this is resolved")
 
 

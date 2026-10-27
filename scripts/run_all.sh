@@ -17,12 +17,16 @@ python -c "import lerobot, gym_pusht, av, matplotlib" 2>/dev/null || {
 echo "== 1/5 prepare official Diffusion Policy weights"
 bash scripts/prepare_official_diffusion.sh
 
-if [[ -z "${SKIP_CHECK:-}" && ! -f "results/checks/determinism_batch${BATCH}.json" ]]; then
+CHECK_JSON="results/checks/determinism_batch${BATCH}.json"
+check_passed() { [[ -f "$CHECK_JSON" ]] && python -c "import json,sys; sys.exit(0 if json.load(open(sys.argv[1])).get('passed') else 1)" "$CHECK_JSON"; }
+if [[ -n "${SKIP_CHECK:-}" ]]; then
+  echo "== 2/5 determinism check: skipped (SKIP_CHECK set)"
+elif check_passed; then
+  echo "== 2/5 determinism check: already passed ($CHECK_JSON)"
+else
   echo "== 2/5 batch determinism + speed check (2 x $BATCH episodes at batch $BATCH, 5 at batch 1)"
   python scripts/check_determinism.py --policy-dir "$OUT_ROOT/migrated/diffusion_pusht" \
     --batch-size "$BATCH" --n-episodes "$BATCH"
-else
-  echo "== 2/5 determinism check: skipped (already done or SKIP_CHECK set)"
 fi
 
 echo "== 3/5 robustness sweep ($CONFIG)"
