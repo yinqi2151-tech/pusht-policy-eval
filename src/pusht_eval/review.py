@@ -4,7 +4,9 @@ LeRobot only saves videos for the first 10 episodes of a run. Because every
 episode's states are logged, any episode can be re-rendered afterwards by
 resetting PushT to the logged state at each step. The replay shows the
 environment as simulated (the policy's perturbed 96x96 view is not shown;
-for occlusion runs the occluder's footprint is drawn as a gray outline).
+for occlusion and erase runs the square's footprint is drawn as a gray outline).
+The replay sets each logged body pose directly; tests/test_replay.py checks
+it against frames rendered live during a rollout.
 
 The review sample is blind: videos are named by an anonymous id and carry no
 category or coverage overlay; the mapping to condition/seed/auto category is
@@ -23,7 +25,7 @@ import gymnasium as gym
 import numpy as np
 
 from pusht_eval.failures import CATEGORIES
-from pusht_eval.perturbations import PerturbationSpec, occlusion_box
+from pusht_eval.perturbations import SQUARE_KINDS, PerturbationSpec, occlusion_box
 
 VIS_SIZE = 384
 OBS_SIZE = 96
@@ -43,15 +45,24 @@ def render_replay(traj: dict, perturbation: PerturbationSpec | None = None, fps_
     agent, block = traj["agent_pos"], traj["block_pose"]
     executed, raw = traj["action"], traj.get("policy_action", traj["action"])
     box = None
-    if perturbation is not None and perturbation.kind == "occlusion" and not perturbation.is_clean:
+    if perturbation is not None and perturbation.kind in SQUARE_KINDS and not perturbation.is_clean:
         row, col, h, w = occlusion_box(int(traj["seed"]), int(perturbation.level), OBS_SIZE)
         scale = VIS_SIZE / OBS_SIZE
         box = (int(col * scale), int(row * scale), int((col + w) * scale), int((row + h) * scale))
     frames = []
     try:
+        env.reset(seed=int(traj["seed"]))
         for t in range(0, len(agent), fps_stride):
-            state = np.array([*agent[t], *block[t]], dtype=np.float64)
-            env.reset(seed=int(traj["seed"]), options={"reset_to_state": state})
+            # Set the logged pose directly: angle first, then position. gym_pusht's
+            # reset_to_state/_set_state sets position first and then the angle, which
+            # rotates the T about its centre of gravity and shifts it (fine for its own
+            # sampled initial states, wrong for replaying a logged body pose).
+            base.agent.position = (float(agent[t][0]), float(agent[t][1]))
+            base.block.angle = float(block[t][2])
+            base.block.position = (float(block[t][0]), float(block[t][1]))
+            # Drawing reads cached shape geometry, normally refreshed by a physics step.
+            base.space.reindex_shapes_for_body(base.agent)
+            base.space.reindex_shapes_for_body(base.block)
             base._last_action = executed[t - 1] if t > 0 else None
             frame = np.ascontiguousarray(env.render())
             if t > 0 and not np.allclose(raw[t - 1], executed[t - 1]):
@@ -104,9 +115,10 @@ def cohen_kappa(labels_a: list[str], labels_b: list[str]) -> float:
 
 
 def agreement(sheet_csv: Path, key_csv: Path) -> dict:
-    with open(sheet_csv, newline="", encoding="utf-8") as f:
-        human = {r["review_id"]: r["human_category"].strip() for r in csv.DictReader(f)}
-    with open(key_csv, newline="", encoding="utf-8") as f:
+    with open(sheet_csv, newline="", encoding="utf-8-sig") as f:
+        # tolerate formatting copied from the docs, e.g. `near_miss`
+        human = {r["review_id"]: r["human_category"].strip().strip("`'\"").strip() for r in csv.DictReader(f)}
+    with open(key_csv, newline="", encoding="utf-8-sig") as f:
         auto = {r["review_id"]: r["auto_category"] for r in csv.DictReader(f)}
     ids = [i for i in auto if human.get(i)]
     unknown = sorted({human[i] for i in ids} - set(CATEGORIES))

@@ -29,13 +29,19 @@ def main() -> None:
     parser.add_argument("--out", type=Path, default=REPO / "results" / "review")
     parser.add_argument("--per-category", type=int, default=8)
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--exclude", type=Path, action="append", default=[],
+                        help="review_key.csv of an earlier round; its episodes are not drawn again")
     args = parser.parse_args()
 
     sheet_path, key_path = args.out / "review_sheet.csv", args.out / "review_key.csv"
     if sheet_path.exists():
         sys.exit(f"{sheet_path} exists; delete it deliberately before drawing a new sample")
     runs = load_sweep(args.results)
-    rows = [r for rs in runs.values() for r in rs if "category" in r]
+    seen = set()
+    for key_file in args.exclude:
+        with open(key_file, newline="", encoding="utf-8-sig") as f:
+            seen |= {(r["condition"], int(r["seed"])) for r in csv.DictReader(f)}
+    rows = [r for rs in runs.values() for r in rs if "category" in r and (r["condition"], r["seed"]) not in seen]
     sample = stratified_sample(rows, args.per_category, args.seed)
     args.out.mkdir(parents=True, exist_ok=True)
     trajs = {}
