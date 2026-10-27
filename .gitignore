@@ -1,0 +1,8 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv*/
+outputs/
+# raw run outputs live in $OUT_ROOT, not in the repo
+results/logs/sweep/*.log

@@ -1,0 +1,15 @@
+{
+  "description": "Robustness sweep of the official Diffusion Policy on PushT: four perturbation families, four levels each, paired on the same 100 initial states.",
+  "policy_dir": "${OUT_ROOT}/migrated/diffusion_pusht",
+  "policy_label": "lerobot/diffusion_pusht@84a7c231 (migrated to LeRobot 0.6.1 processors)",
+  "start_seed": 2000,
+  "n_episodes": 100,
+  "batch_size": 25,
+  "conditions": [
+    "none",
+    "action_noise:5", "action_noise:10", "action_noise:20", "action_noise:40",
+    "action_delay:1", "action_delay:2", "action_delay:4", "action_delay:8",
+    "image_noise:8", "image_noise:16", "image_noise:32", "image_noise:64",
+    "occlusion:16", "occlusion:24", "occlusion:32", "occlusion:48"
+  ]
+}
