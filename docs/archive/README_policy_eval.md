@@ -73,7 +73,7 @@ lerobot-eval \
   --output_dir=outputs/eval/diffusion_pusht_baseline_20
 ```
 
-复核待办由 `scripts/triage_policy_failures.py` 生成，标签定义见 [视频复核规则](pusht_review_rubric.md)。当前只对种子 1003 与 1007 有完整人工观察；其余标签留空。项目经历的可投递版本见 [简历表述](policy_eval_resume.md)。
+复核待办由 `scripts/triage_policy_failures.py` 生成，标签定义见 [视频复核规则](pusht_review_rubric.md)。当前只对种子 1003 与 1007 有完整人工观察；其余标签留空。
 
 按种子在同版本 PushT 环境重建了种子 1000–1019 与 2000–2019 的初始物块位置、朝向和推杆距离，分别保存到 `results/pusht_initial_scenes_*.csv`。预先固定距离与朝向阈值，再与逐回合指标结合，见 [场景几何分层](../results/pusht_scene_analysis.md)。这是几何分组，不是已经验证的难度分级。
 
@@ -139,7 +139,7 @@ python /mnt/c/Users/qyq71/Desktop/mpc_go2/scripts/eval_pusht_action_noise.py \
   --output_dir=outputs/eval/act_pusht_deterministic10_noise5_20
 ```
 
-确定性协议下，噪声标准差 5 的平均影响很小，20 回合不足以宣称抗扰动能力提升或下降。下一阶段补视频归因与更多扰动强度。未执行的实验不计入报告和简历数字。
+确定性协议下，噪声标准差 5 的平均影响很小，20 回合不足以宣称抗扰动能力提升或下降。下一阶段补视频归因与更多扰动强度。未执行的实验不计入报告数字。
 
 成功率、失败率及其置信区间的统计函数在 `mpc_go2/evaluation/stats.py`，之后 Go2 的摔倒率也可调用同一函数；各任务的连续指标另行定义。
 

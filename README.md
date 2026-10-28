@@ -99,7 +99,7 @@ results/review/             第二轮盲审（视频、标注、一致率）
 results/review_v1_misrendered/  第一轮盲审（因渲染 bug 作废，存档）
 results/validation/         官方权重的 50 回合校验结果
 results/archive/            早期第三方权重的实验结果（原样保存）
-docs/                       协议、校验、结局分类、项目过程记录、简历表述
+docs/                       协议、校验、结局分类、项目过程记录
 ```
 
 ## 许可证与第三方资源
